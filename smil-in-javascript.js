@@ -196,29 +196,47 @@ PriorityQueue.prototype = {
 };
 
 var masterScheduler = {
+  player: null,
   scheduledAnimationRecords: new PriorityQueue(),
 
+  createPlayer: function() {
+    var animation =  new Animation(
+        document.body,
+        pollSchedule, // or processingPendingRecords bind this
+        { duration: Infinity });
+    this.player = document.timeline.play(animation);
+    this.updatePlayer(); // sets initial startTime to Infinity
+  },
+  updatePlayer: function() {
+    var earliestScheduleTime = this.scheduledAnimationRecords.earliestScheduleTime();
+    if (this.player.startTime != earliestScheduleTime) {
+      this.player.startTime = earliestScheduleTime;
+    }
+  },
   insertAnimationRecord: function(animationRecord) {
     this.scheduledAnimationRecords.insert(animationRecord);
+    this.updatePlayer();
   },
   removeAnimationRecord: function(animationRecord) {
     this.scheduledAnimationRecords.remove(animationRecord);
+    this.updatePlayer();
   },
   processingPendingRecords: function() {
     var currentTime = document.timeline.currentTime;
+    console.log('In processingPendingRecords ' + currentTime);
     var animationRecord;
     while ((animationRecord =
             this.scheduledAnimationRecords.extractFirst(currentTime))) {
       animationRecord.processNow();
     }
+    this.updatePlayer();
   }
 };
 
-// FIXME: use a custom effect callback instead of polling
-window.requestAnimationFrame(function pollSchedule() {
+function pollSchedule() {
+  console.log('In pollSchedule');
   masterScheduler.processingPendingRecords();
-  window.requestAnimationFrame(pollSchedule);
-});
+}
 
 
 // Implements http://www.w3.org/TR/SVG/animate.html#ClockValueSyntax
@@ -1080,6 +1098,7 @@ function updateRecords() {
 
   // First time: walk the DOM and create observer.
 
+  masterScheduler.createPlayer();
 
   // We would like to use document.querySelectorAll(tag) for each tag in
   // observedTags, but can't yet due to
